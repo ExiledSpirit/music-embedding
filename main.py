@@ -5,12 +5,11 @@ import numpy as np
 import soundfile as sf
 import openl3
 import tensorflow as tf
+import gc
 from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
-from io import BytesIO
 import time
-import requests
 
 # --- Logging ---
 def log(msg, prefix="ℹ️"):
@@ -24,6 +23,8 @@ args = parser.parse_args()
 # --- Paths ---
 csv_path = "./dataset.csv"
 output_csv = "dataset_with_embeddings.csv"
+songs_folder = "songs"
+os.makedirs(songs_folder, exist_ok=True)
 
 # --- Load Dataset ---
 df = pd.read_csv(csv_path)
@@ -45,20 +46,21 @@ gpus = tf.config.list_physical_devices("GPU")
 log(f"TensorFlow version: {tf.__version__}")
 log(f"GPU detected: {bool(gpus)}", prefix="✅" if gpus else "❌")
 
-# --- Load OpenL3 model once ---
-log("Loading OpenL3 model...", prefix="🎧")
-model = openl3.models.load_audio_embedding_model(
-    input_repr="mel256", content_type="music", embedding_size=512
-)
-
 # --- Processing function ---
-def process_url(idx, url):
+def process_file(idx, wav_path):
     try:
-        t0 = time.time()
+        import soundfile as sf
+        import numpy as np
+        import openl3
+        import tensorflow as tf
+        import gc
 
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        audio_data, sr = sf.read(BytesIO(response.content), dtype='float32')
+        model = openl3.models.load_audio_embedding_model(
+            input_repr="mel256", content_type="music", embedding_size=512
+        )
+
+        t0 = time.time()
+        audio_data, sr = sf.read(wav_path, dtype='float32')
         if audio_data.ndim > 1:
             audio_data = np.mean(audio_data, axis=1)
         t1 = time.time()
@@ -67,6 +69,10 @@ def process_url(idx, url):
         avg_emb = np.mean(emb, axis=0)
         t2 = time.time()
 
+        tf.keras.backend.clear_session()
+        del audio_data, emb
+        gc.collect()
+
         return idx, ",".join(map(str, avg_emb)), None, (t1 - t0, t2 - t1)
 
     except Exception as e:
@@ -74,7 +80,7 @@ def process_url(idx, url):
 
 # --- Execution ---
 log("Starting download + embedding...", prefix="🚀")
-save_interval = 200
+save_interval = 10
 processed_count = 0
 to_process = []
 
@@ -82,12 +88,13 @@ to_process = []
 for idx, row in df_subset.iterrows():
     if pd.notna(row.get("openl3_embedding")) and str(row["openl3_embedding"]).strip() != "":
         continue
-    url = row.get("spotify_track_preview_url")
-    if pd.notna(url):
-        to_process.append((idx, url))
+    to_process.append(idx)
 
-with ThreadPoolExecutor(max_workers=5) as executor:
-    futures = {executor.submit(process_url, idx, url): idx for idx, url in to_process}
+with ProcessPoolExecutor(max_workers=1) as executor:
+    futures = {
+        executor.submit(process_file, idx, os.path.join(songs_folder, f"track_{idx}.wav")): idx
+        for idx in to_process
+    }
 
     for future in tqdm(as_completed(futures), total=len(futures), desc="Embedding"):
         idx, emb_str, error, times = future.result()
@@ -97,7 +104,7 @@ with ThreadPoolExecutor(max_workers=5) as executor:
         else:
             dl_time, embed_time = times
             df_subset.at[idx, "openl3_embedding"] = emb_str
-            log(f"[{idx}] ✅ Embedded. ⏳ Download: {dl_time:.2f}s | Embed: {embed_time:.2f}s", prefix="📥")
+            log(f"[{idx}] ✅ Embedded. ⏳ Download: {dl_time:.2f}s | Embed: {embed_time:.2f}s", prefix="📅")
 
         processed_count += 1
         if processed_count % save_interval == 0:
