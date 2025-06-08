@@ -8,7 +8,9 @@ import tensorflow as tf
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from io import BytesIO
 import time
+import requests
 
 # --- Logging ---
 def log(msg, prefix="ℹ️"):
@@ -22,8 +24,6 @@ args = parser.parse_args()
 # --- Paths ---
 csv_path = "./dataset.csv"
 output_csv = "dataset_with_embeddings.csv"
-songs_folder = "songs"
-os.makedirs(songs_folder, exist_ok=True)
 
 # --- Load Dataset ---
 df = pd.read_csv(csv_path)
@@ -52,15 +52,13 @@ model = openl3.models.load_audio_embedding_model(
 )
 
 # --- Processing function ---
-def process_file(idx):
+def process_url(idx, url):
     try:
         t0 = time.time()
-        wav_path = os.path.join(songs_folder, f"track_{idx}.wav")
 
-        if not os.path.exists(wav_path):
-            return idx, None, f"WAV not found: {wav_path}", None
-
-        audio_data, sr = sf.read(wav_path, dtype='float32')
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        audio_data, sr = sf.read(BytesIO(response.content), dtype='float32')
         if audio_data.ndim > 1:
             audio_data = np.mean(audio_data, axis=1)
         t1 = time.time()
@@ -75,8 +73,8 @@ def process_file(idx):
         return idx, None, str(e), None
 
 # --- Execution ---
-log("Starting embedding from existing WAV files...", prefix="🚀")
-save_interval = 10
+log("Starting download + embedding...", prefix="🚀")
+save_interval = 200
 processed_count = 0
 to_process = []
 
@@ -84,10 +82,12 @@ to_process = []
 for idx, row in df_subset.iterrows():
     if pd.notna(row.get("openl3_embedding")) and str(row["openl3_embedding"]).strip() != "":
         continue
-    to_process.append(idx)
+    url = row.get("spotify_track_preview_url")
+    if pd.notna(url):
+        to_process.append((idx, url))
 
 with ThreadPoolExecutor(max_workers=5) as executor:
-    futures = {executor.submit(process_file, idx): idx for idx in to_process}
+    futures = {executor.submit(process_url, idx, url): idx for idx, url in to_process}
 
     for future in tqdm(as_completed(futures), total=len(futures), desc="Embedding"):
         idx, emb_str, error, times = future.result()
@@ -97,7 +97,7 @@ with ThreadPoolExecutor(max_workers=5) as executor:
         else:
             dl_time, embed_time = times
             df_subset.at[idx, "openl3_embedding"] = emb_str
-            log(f"[{idx}] ✅ Embedded. ⏳ Load: {dl_time:.2f}s | Embed: {embed_time:.2f}s", prefix="📥")
+            log(f"[{idx}] ✅ Embedded. ⏳ Download: {dl_time:.2f}s | Embed: {embed_time:.2f}s", prefix="📥")
 
         processed_count += 1
         if processed_count % save_interval == 0:
