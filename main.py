@@ -9,8 +9,9 @@ from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from io import BytesIO
-import time
 import requests
+import time
+import gc
 
 # --- Logging ---
 def log(msg, prefix="ℹ️"):
@@ -45,6 +46,10 @@ gpus = tf.config.list_physical_devices("GPU")
 log(f"TensorFlow version: {tf.__version__}")
 log(f"GPU detected: {bool(gpus)}", prefix="✅" if gpus else "❌")
 
+# --- TensorFlow Optimization ---
+tf.config.threading.set_intra_op_parallelism_threads(1)
+tf.config.threading.set_inter_op_parallelism_threads(1)
+
 # --- Load OpenL3 model once ---
 log("Loading OpenL3 model...", prefix="🎧")
 model = openl3.models.load_audio_embedding_model(
@@ -55,9 +60,9 @@ model = openl3.models.load_audio_embedding_model(
 def process_url(idx, url):
     try:
         t0 = time.time()
-
         response = requests.get(url, timeout=10)
         response.raise_for_status()
+
         audio_data, sr = sf.read(BytesIO(response.content), dtype='float32')
         if audio_data.ndim > 1:
             audio_data = np.mean(audio_data, axis=1)
@@ -67,9 +72,14 @@ def process_url(idx, url):
         avg_emb = np.mean(emb, axis=0)
         t2 = time.time()
 
+        # Cleanup
+        del audio_data, emb
+        gc.collect()
+
         return idx, ",".join(map(str, avg_emb)), None, (t1 - t0, t2 - t1)
 
     except Exception as e:
+        gc.collect()
         return idx, None, str(e), None
 
 # --- Execution ---
@@ -100,9 +110,14 @@ with ThreadPoolExecutor(max_workers=5) as executor:
             log(f"[{idx}] ✅ Embedded. ⏳ Download: {dl_time:.2f}s | Embed: {embed_time:.2f}s", prefix="📥")
 
         processed_count += 1
+
         if processed_count % save_interval == 0:
             log(f"Saving checkpoint at {processed_count} songs...", prefix="💾")
             df_subset.to_csv(output_csv, index=False)
+
+        if processed_count % 100 == 0:
+            log("Clearing TensorFlow session cache...", prefix="🧹")
+            tf.keras.backend.clear_session()
 
 # --- Final Save ---
 log("Saving final CSV...", prefix="💾")
