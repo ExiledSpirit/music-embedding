@@ -1,0 +1,6 @@
+openl3==0.4.2
+tqdm
+soundfile
+pandas
+numpy
+tensorflow==2.19.0
