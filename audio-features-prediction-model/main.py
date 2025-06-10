@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import ast
 import time
+import joblib 
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.multioutput import MultiOutputRegressor
@@ -78,6 +79,14 @@ duration = time.time() - start
 print(f"Training complete in {duration:.2f} seconds")
 
 # =========================
+# Salva o modelo e dados críticos
+# =========================
+print("Salvando modelo e assets...")
+joblib.dump(model, 'trained_music_model.joblib')  # Salva o modelo
+np.save('embeddings.npy', X)  # Salva todos os embeddings
+df.to_csv('metadata_with_embeddings.csv', index=False)  # Salva metadados
+
+# =========================
 # testes
 # =========================
 print("avaliando o modelo")
@@ -93,3 +102,5 @@ results = pd.DataFrame({
 print("Performance:\n", results)
 
 results.to_csv("model_performance.csv", index=False)
+
+print("Processo completo! Modelo salvo em 'trained_music_model.joblib'")
