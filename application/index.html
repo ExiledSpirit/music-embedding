@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Embeddingsss</title>
+    <link rel="stylesheet" href="index.css" />
+    <style>
+      .recommendation-list li {
+        cursor: pointer;
+        margin-bottom: 5px;
+      }
+    </style>
+</head>
+<body>
+
+    <h2 id="popularidade" style="display: none;">SUA MÚSICA TEM <span style="color: green; font-size: 30px;">80%</span> DE CHANCE DE SUCESSO!</h2>
+
+    <div class="container">
+        <h1>Envie sua música</h1>
+        <span>Descubra músicas semelhantes à sua em poucos segundos.</span>
+        <input type="file" id="fileInput" accept=".mp3" />
+        <button id="submitButton">Enviar</button>
+
+        <div id="result" style="margin-top: 10px;">
+        </div>
+
+        <audio id="audioPlayer" controls style="display:none;"></audio>
+
+
+        <div id="loading" style="display:none; margin-top: 10px;">Processando, aguarde...</div>
+
+    </div>
+
+    <script>
+    document.getElementById('submitButton').addEventListener("click", () =>{
+        const button = this;
+        const fileInput = document.getElementById('fileInput');
+        const file = fileInput.files[0];
+        const loading = document.getElementById('loading');
+        const recList = document.getElementById('result');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const popularidade = document.getElementById('popularidade');
+
+        if (!file) {
+            alert("Por favor, selecione um arquivo MP3.");
+            return;
+        }
+
+        button.disabled = true;
+        loading.style.display = 'block';
+        recList.innerHTML = '';
+        audioPlayer.style.display = 'none';
+        audioPlayer.pause();
+        audioPlayer.src = '';
+
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        fetch('http://127.0.0.1:8000/upload', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Success:', data);
+            loading.style.display = 'none';
+            audioPlayer.style.display = 'none';
+            audioPlayer.pause();
+            audioPlayer.src = '';
+            button.disabled = false;
+            popularidade.style.display = 'block';
+
+            const list = document.createElement('ul');
+            list.classList.add('recommendation-list');
+
+            data.recommendations.forEach((rec) => {
+                const item = document.createElement('li');
+                item.textContent = `${rec.Song} - ${rec.Performer}`;
+                item.style.cursor = 'pointer';
+
+                item.addEventListener('click', () => {
+                    if (rec.spotify_track_preview_url) {
+                        audioPlayer.src = rec.spotify_track_preview_url;
+                        audioPlayer.style.display = 'block';
+                        audioPlayer.play();
+                    } else {
+                        alert('Preview não disponível para essa música.');
+                    }
+                });
+
+                list.appendChild(item);
+            });
+
+            recList.appendChild(list);
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+            alert("Erro ao enviar o arquivo.");
+        });
+    })
+    </script>
+</body>
+</html>
