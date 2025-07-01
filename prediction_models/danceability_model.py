@@ -37,7 +37,7 @@ model = XGBRegressor(
     device="cuda",
     objective="reg:squarederror",
     random_state=42,
-    n_jobs=-1
+    n_jobs=1
 )
 
 # === Grid Search
@@ -47,7 +47,7 @@ grid = GridSearchCV(
     cv=3,
     scoring='r2',
     verbose=2,
-    n_jobs=-1
+    n_jobs=1
 )
 
 # === Train
@@ -72,7 +72,7 @@ final_model = XGBRegressor(
     device="cuda",
     objective="reg:squarederror",
     random_state=42,
-    n_jobs=-1
+    n_jobs=1
 )
 
 final_model.fit(
