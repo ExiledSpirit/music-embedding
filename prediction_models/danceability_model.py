@@ -9,8 +9,10 @@ from sklearn.metrics import r2_score, mean_squared_error
 df = pd.read_csv("../dataset_with_embeddings.csv")
 df = df[df['openl3_embedding'].notna()].copy()
 df['embedding'] = df['openl3_embedding'].apply(lambda x: np.array(ast.literal_eval(x)))
-X = np.stack(df['embedding'].values)
-y = df['danceability'].values
+
+# Conversão para float32 para evitar aviso de "mismatched devices"
+X = np.stack(df['embedding'].values).astype(np.float32)
+y = df['danceability'].astype(np.float32).values
 
 # === Split
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -26,7 +28,7 @@ param_grid = {
 
 # === Modelo com GPU - XGBoost 2.0+
 model = XGBRegressor(
-    tree_method="hist",   # XGBoost 2.0+: "hist" com "device=cuda"
+    tree_method="hist",   # XGBoost 2.0+: usar "hist" com device="cuda"
     device="cuda",
     objective="reg:squarederror",
     random_state=42,
