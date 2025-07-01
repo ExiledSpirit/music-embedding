@@ -47,7 +47,7 @@ print(f"Embedding shape: {X.shape}")
 target_cols = [
     "danceability", "energy", "loudness",
     "speechiness", "acousticness", "instrumentalness",
-    "liveness", "valence", "tempo"
+    "liveness", "valence"
 ]
 
 missing_targets = [col for col in target_cols if col not in df.columns]

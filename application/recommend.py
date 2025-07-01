@@ -3,9 +3,9 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 
-model = joblib.load('trained_music_model.joblib')
-X = np.load('embeddings.npy')
-df = pd.read_csv('metadata_with_embeddings.csv')
+model = joblib.load('C:\\Users\\Exile\\projetos\\music-embedding\\application\\trained_music_model.joblib')
+X = np.load('C:\\Users\\Exile\\projetos\\music-embedding\\application\\embeddings.npy')
+df = pd.read_csv('C:\\Users\\Exile\\projetos\\music-embedding\\application\\metadata_with_embeddings.csv')
 
 def recommend_song(input_embedding, n=5, min_danceability=0.6):
     features = model.predict(input_embedding.reshape(1, -1))[0]    
