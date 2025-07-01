@@ -24,17 +24,19 @@ param_grid = {
     "colsample_bytree": [0.8, 1],
 }
 
+# === Modelo com GPU - XGBoost 2.0+
 model = XGBRegressor(
-    tree_method='gpu_hist',
-    predictor='gpu_predictor',
-    objective='reg:squarederror',
+    tree_method="hist",   # XGBoost 2.0+: "hist" com "device=cuda"
+    device="cuda",
+    objective="reg:squarederror",
     random_state=42,
     n_jobs=-1
 )
 
+# === Grid Search
 grid = GridSearchCV(
-    model,
-    param_grid,
+    estimator=model,
+    param_grid=param_grid,
     cv=3,
     scoring='r2',
     verbose=2,
