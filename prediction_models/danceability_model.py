@@ -3,18 +3,26 @@ import numpy as np
 import ast
 import itertools
 from xgboost import XGBRegressor
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.metrics import r2_score, mean_squared_error
 
 # === CONFIG ===
 csv_path = "../dataset_with_embeddings.csv"
-output_txt = "feature_combinations_results.txt"
+output_txt = "feature_combinations_grid_results.txt"
 target_features = [
     "danceability", "energy", "loudness",
     "speechiness", "acousticness", "instrumentalness",
     "liveness", "valence", "tempo"
 ]
 extra_candidates = ["tempo", "key", "mode"]
+
+param_grid = {
+    "n_estimators": [100],
+    "max_depth": [5],
+    "learning_rate": [0.05, 0.1],
+    "subsample": [0.8],
+    "colsample_bytree": [0.8]
+}
 
 # === Load Data
 df = pd.read_csv(csv_path)
@@ -24,7 +32,7 @@ embedding_array = np.stack(df['embedding'].values)
 
 # === Prepare combinations
 feature_combinations = []
-for i in range(0, 4):  # 0 to 3 features
+for i in range(0, 4):  # 0 a 3 features extra
     for combo in itertools.combinations(extra_candidates, i):
         feature_combinations.append(list(combo))
 
@@ -35,32 +43,45 @@ with open(output_txt, "w") as f:
         y = df[target].values
 
         for combo in feature_combinations:
-            # Build feature matrix
+            # Build X
             if combo:
                 extra = df[combo].values
                 X = np.hstack([embedding_array, extra])
             else:
                 X = embedding_array
 
-            # Split
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-            # Model
-            model = XGBRegressor(
+            base_model = XGBRegressor(
                 tree_method="hist",
                 device="cuda",
                 objective="reg:squarederror",
                 random_state=42,
-                n_jobs=-1
+                n_jobs=1
             )
-            model.fit(X_train, y_train)
-            y_pred = model.predict(X_test)
 
-            r2 = r2_score(y_test, y_pred)
-            mse = mean_squared_error(y_test, y_pred)
+            grid = GridSearchCV(
+                base_model,
+                param_grid,
+                cv=3,
+                scoring='r2',
+                verbose=0,
+                n_jobs=1
+            )
 
-            f.write(f"Features: {combo or 'None'}\n")
-            f.write(f"  R²: {r2:.4f}\n")
-            f.write(f"  MSE: {mse:.6f}\n\n")
+            try:
+                grid.fit(X_train, y_train)
+                best_model = grid.best_estimator_
+                y_pred = best_model.predict(X_test)
+                r2 = r2_score(y_test, y_pred)
+                mse = mean_squared_error(y_test, y_pred)
 
-print(f"Arquivo gerado: {output_txt}")
+                f.write(f"Features: {combo or 'None'}\n")
+                f.write(f"  Best Params: {grid.best_params_}\n")
+                f.write(f"  R²: {r2:.4f}\n")
+                f.write(f"  MSE: {mse:.6f}\n\n")
+            except Exception as e:
+                f.write(f"Features: {combo or 'None'}\n")
+                f.write(f"  ERRO: {e}\n\n")
+
+print(f"[✓] Resultados com GridSearch salvos em: {output_txt}")
