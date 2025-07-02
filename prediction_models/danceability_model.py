@@ -11,10 +11,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-m", type=bool, default=False, help="Has mode feature")
 parser.add_argument("-k", type=bool, default=False, help="Has key feature")
 parser.add_argument("-t", type=bool, default=False, help="Has tempo feature")
+parser.add_argument("--target", type=str, default="danceability", help="Has tempo feature")
 args = parser.parse_args()
 has_mode = args.m
 has_key = args.k
 has_tempo = args.t
+target_feature = args.target
 
 # === Load Data
 df = pd.read_csv("../dataset_with_embeddings.csv")
@@ -35,7 +37,7 @@ extra_features = df [extra_columns].values
 X = np.hstack([embedding_array, extra_features])
 
 # === Output variables: danceability, tempo, key, mode
-target_columns = ['danceability']
+target_columns = [target_feature]
 y = df[target_columns].values
 
 # === Split
