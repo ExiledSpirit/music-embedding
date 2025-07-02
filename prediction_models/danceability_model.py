@@ -1,9 +1,20 @@
 import pandas as pd
 import numpy as np
+import argparse
 import ast
 from xgboost import XGBRegressor
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.metrics import r2_score, mean_squared_error
+
+# --- CLI Args ---
+parser = argparse.ArgumentParser()
+parser.add_argument("-m", type=bool, default=False, help="Has mode feature")
+parser.add_argument("-k", type=bool, default=False, help="Has key feature")
+parser.add_argument("-t", type=bool, default=False, help="Has tempo feature")
+args = parser.parse_args()
+has_mode = args.m
+has_key = args.k
+has_tempo = args.t
 
 # === Load Data
 df = pd.read_csv("../dataset_with_embeddings.csv")
@@ -15,7 +26,13 @@ extra_features = df [['key']].values
 X = np.hstack([embedding_array, extra_features])
 
 # === Output variables: danceability, tempo, key, mode
-target_columns = ['danceability']
+target_columns = []
+if (has_tempo):
+  target_columns.append('tempo')
+if (has_key):
+  target_columns.append('key')
+if (has_mode):
+  target_columns.append('mode')
 y = df[target_columns].values
 
 # === Split
