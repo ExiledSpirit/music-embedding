@@ -9,10 +9,13 @@ from sklearn.metrics import r2_score, mean_squared_error
 df = pd.read_csv("../dataset_with_embeddings.csv")
 df = df[df['openl3_embedding'].notna()].copy()
 df['embedding'] = df['openl3_embedding'].apply(lambda x: np.array(ast.literal_eval(x)))
-X = np.stack(df['embedding'].values)
+embedding_array = np.stack(df['embedding'].values)
+
+extra_features = df [['tempo', 'key', 'mode']].values
+X = np.hstack([embedding_array, extra_features])
 
 # === Output variables: danceability, tempo, key, mode
-target_columns = ['danceability', 'tempo', 'key', 'mode']
+target_columns = ['danceability']
 y = df[target_columns].values
 
 # === Split
