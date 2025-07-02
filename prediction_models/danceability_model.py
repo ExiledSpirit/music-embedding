@@ -22,17 +22,20 @@ df = df[df['openl3_embedding'].notna()].copy()
 df['embedding'] = df['openl3_embedding'].apply(lambda x: np.array(ast.literal_eval(x)))
 embedding_array = np.stack(df['embedding'].values)
 
-extra_features = df [['key']].values
+extra_columns = []
+if (has_tempo):
+  extra_columns.append('tempo')
+if (has_key):
+  extra_columns.append('key')
+if (has_mode):
+  extra_columns.append('mode')
+extra_features = df [extra_columns].values
+# === Output variables: danceability, tempo, key, mode
+
 X = np.hstack([embedding_array, extra_features])
 
 # === Output variables: danceability, tempo, key, mode
-target_columns = []
-if (has_tempo):
-  target_columns.append('tempo')
-if (has_key):
-  target_columns.append('key')
-if (has_mode):
-  target_columns.append('mode')
+target_columns = ['danceability']
 y = df[target_columns].values
 
 # === Split
