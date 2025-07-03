@@ -9,12 +9,16 @@ from sklearn.metrics import r2_score, mean_squared_error
 # === CONFIG ===
 csv_path = "../dataset_with_embeddings.csv"
 output_txt = "feature_combinations_grid_results.txt"
+
+# Removidos 'tempo' e 'loudness' dos targets
 target_features = [
-    "danceability", "energy", "loudness",
+    "danceability", "energy",
     "speechiness", "acousticness", "instrumentalness",
-    "liveness", "valence", "tempo"
+    "liveness", "valence"
 ]
-extra_candidates = ["tempo", "key", "mode"]
+
+# Adicionados 'loudness' e 'time_signature' como features auxiliares
+extra_candidates = ["tempo", "key", "mode", "loudness", "time_signature"]
 
 param_grid = {
     "n_estimators": [100],
@@ -30,11 +34,10 @@ df = df[df['openl3_embedding'].notna()].copy()
 df['embedding'] = df['openl3_embedding'].apply(lambda x: np.array(ast.literal_eval(x)))
 embedding_array = np.stack(df['embedding'].values)
 
-# === Prepare combinations
+# === Prepare combinations of 0 a 3 features auxiliares
 feature_combinations = []
-for i in range(0, 4):  # 0 a 3 features extra
-    for combo in itertools.combinations(extra_candidates, i):
-        feature_combinations.append(list(combo))
+for i in range(0, min(4, len(extra_candidates) + 1)):  # safe bound
+    feature_combinations.extend(itertools.combinations(extra_candidates, i))
 
 # === Run tests
 with open(output_txt, "w") as f:
@@ -43,33 +46,36 @@ with open(output_txt, "w") as f:
         y = df[target].values
 
         for combo in feature_combinations:
-            # Build X
-            if combo:
-                extra = df[combo].values
-                X = np.hstack([embedding_array, extra])
-            else:
-                X = embedding_array
-
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-            base_model = XGBRegressor(
-                tree_method="hist",
-                device="cuda",
-                objective="reg:squarederror",
-                random_state=42,
-                n_jobs=1
-            )
-
-            grid = GridSearchCV(
-                base_model,
-                param_grid,
-                cv=3,
-                scoring='r2',
-                verbose=0,
-                n_jobs=1
-            )
-
+            combo = list(combo)
             try:
+                # Cria X com ou sem features auxiliares
+                if combo:
+                    extra = df[combo].values
+                    X = np.hstack([embedding_array, extra])
+                else:
+                    X = embedding_array
+
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X, y, test_size=0.2, random_state=42
+                )
+
+                base_model = XGBRegressor(
+                    tree_method="hist",
+                    device="cuda",
+                    objective="reg:squarederror",
+                    random_state=42,
+                    n_jobs=1
+                )
+
+                grid = GridSearchCV(
+                    base_model,
+                    param_grid,
+                    cv=3,
+                    scoring='r2',
+                    verbose=0,
+                    n_jobs=1
+                )
+
                 grid.fit(X_train, y_train)
                 best_model = grid.best_estimator_
                 y_pred = best_model.predict(X_test)
