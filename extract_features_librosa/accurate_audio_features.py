@@ -4,7 +4,7 @@ import librosa
 from essentia.standard import MonoLoader, KeyExtractor
 from madmom.features.beats import RNNBeatProcessor, DBNBeatTrackingProcessor
 
-def extract_audio_features_accurate(file_path):
+def extract_advanced_features(file_path):
     # === LOAD AUDIO
     y, sr = librosa.load(file_path, sr=44100)
     audio = y.astype(np.float32)
@@ -39,3 +39,5 @@ def extract_audio_features_accurate(file_path):
             ts_estimate = 3
 
     return key_note, mode, loudness, bpm_estimate, ts_estimate
+
+__all__ = ["extract_advanced_features"]
